@@ -1,11 +1,11 @@
 const puppeteer = require("puppeteer");
 
-const self = {
+const cars = {
   browser: null,
   page: null,
 
-  initialize: async (getCarList) => {
-    self.browser = await puppeteer.launch({
+  initialize: async () => {
+    this.browser = await puppeteer.launch({
       headless: false,
       args: [
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
@@ -18,12 +18,13 @@ const self = {
         // "--window-size=1920,1080",
       ],
     });
-    self.page = await self.browser.newPage();
-    self.page.authenticate({
+
+    this.page = await this.browser.newPage();
+    await this.page.authenticate({
       username: "pxu21186-1",
-      password: "okJNkzLyAhrWoqMo9Nfi",
+      password: "",
     });
-    await self.page.setRequestInterception(true);
+    await this.page.setRequestInterception(true);
 
     const blockedResourceTypes = [
       "image",
@@ -62,18 +63,11 @@ const self = {
     const url =
       "https://www.copart.com/lotSearchResults/?searchCriteria=%7B%22query%22:%5B%22*%22%5D,%22filter%22:%7B%22MAKE%22:%5B%22lot_make_desc:%5C%22ALFA%20ROMEO%5C%22%22%5D%7D,%22sort%22:%5B%22auction_date_type%20desc%22,%22auction_date_utc%20asc%22%5D,%22watchListOnly%22:false,%22searchName%22:%22%22,%22freeFormSearch%22:false%7D";
 
-    self.page.on("request", (request) => {
+    this.page.on("request", async (request) => {
       const requestUrl = request.url().split("?")[0].split("#")[0];
       if (
         blockedResourceTypes.indexOf(request.resourceType()) !== -1 ||
-        skippedResources.some(
-          (resource) => requestUrl.indexOf(resource) !== -1
-        ) ||
-        request.url().includes(".jpg") ||
-        request.url().includes(".jpeg") ||
-        request.url().includes(".png") ||
-        request.url().includes(".gif") ||
-        request.url().includes(".css")
+        skippedResources.some((resource) => requestUrl.indexOf(resource) !== -1)
       ) {
         request.abort();
       } else {
@@ -81,32 +75,37 @@ const self = {
       }
     });
 
-    // await self.page.goto(url, { waitUntil: "domcontentloaded" });
-    await self.page.goto(url, { waitUntil: "networkidle2" });
+    // await this.page.goto(url, { waitUntil: "domcontentloaded" });
+    await this.page.goto(url, { waitUntil: "networkidle2" });
+    await this.page.waitForSelector(
+      '#serverSideDataTable_processing[style="display: none;"]'
+    );
   },
 
   getResult: async () => {
-    let carResult = await self.parseResult();
+    let carResult = await cars.parseResult();
     while (
-      (await self.page.$eval("#serverSideDataTable_next", (el) =>
+      (await this.page.$eval("#serverSideDataTable_next", (el) =>
         el.getAttribute("class")
       )) != "paginate_button next disabled"
     ) {
-      await self.page.click("#serverSideDataTable_next");
-      await self.page.waitForSelector(
+      await this.page.click("#serverSideDataTable_next");
+      await this.page.waitForSelector(
         '#serverSideDataTable_processing[style="display: none;"]'
       );
-      newResult = await self.parseResult();
+      newResult = await cars.parseResult();
       carResult = [...carResult, ...newResult];
       console.log(carResult);
     }
-    await self.browser.close();
+
+    await this.browser.close();
+
     return carResult;
   },
 
   parseResult: async () => {
     const carTable = "#serverSideDataTable tbody tr";
-    const carDetails = await self.page.$$eval(carTable, (nodes) => {
+    const carDetails = await this.page.$$eval(carTable, (nodes) => {
       return nodes.map((node) => {
         const lotsearchLotimage = node
           .querySelector('[data-uname="lotsearchLotimage"]')
@@ -168,4 +167,4 @@ const self = {
   },
 };
 
-module.exports = self;
+module.exports = cars;
